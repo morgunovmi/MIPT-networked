@@ -4,8 +4,7 @@
 #include <netdb.h>
 #include <cstring>
 #include <cstdio>
-#include <iostream>
-#include <chrono>
+#include <vector>
 
 #include "socket_tools.h"
 #include "protocol.h"
@@ -14,14 +13,15 @@ int main(int argc, const char **argv)
 {
   const char *port = "2022";
 
-  addrinfo resAddrInfo;
-  int sfd = create_dgram_socket(nullptr, port, &resAddrInfo);
-
+  int sfd = create_dgram_socket(nullptr, port, nullptr);
   if (sfd == -1)
     return 1;
   printf("listening!\n");
 
-  auto last_heartbeat = std::chrono::high_resolution_clock::now();
+  const char *client_port = "2050";
+  addrinfo clientAddrInfo{};
+  int cl_sfd = 0;
+
   while (true)
   {
     fd_set readSet;
@@ -41,28 +41,28 @@ int main(int argc, const char **argv)
       if (numBytes > 0)
       {
         const auto type = (message_type)*buffer;
-        char* data = buffer + sizeof(message_type);
+        char *data = buffer + sizeof(message_type);
         switch (type)
         {
           case MT_INIT:
+          {
             printf("New user joined - Ident: %s\n", data);
-            break;
+            cl_sfd = create_dgram_socket("localhost", client_port, &clientAddrInfo);
+            if (cl_sfd == -1)
+              return 1;
+          }
+          break;
           case MT_DATA:
             printf("Data message: %s\n", data);
+            if (send_message(cl_sfd, MT_DATA, data, clientAddrInfo) != 0)
+              return 1;
+            break;
+          case MT_KEEP_ALIVE:
             break;
           default:
-            printf("Couldn't decode message_type\n");
+            printf("Unsupported message type\n");
         }
       }
-    }
-
-    if (std::chrono::duration<double, std::milli>{
-            std::chrono::high_resolution_clock::now() - last_heartbeat}
-            .count() > 10000)
-    {
-      if (send_message(sfd, MT_KEEP_ALIVE, {}, resAddrInfo) != 0)
-        return 1;
-      last_heartbeat = std::chrono::high_resolution_clock::now();
     }
   }
   return 0;
