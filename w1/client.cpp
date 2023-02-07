@@ -5,10 +5,26 @@
 #include <cstring>
 #include <cstdio>
 #include <iostream>
+
+
 #include "socket_tools.h"
+#include "protocol.h"
 
 int main(int argc, const char **argv)
 {
+  std::string ident{};
+  if (argc > 2)
+  {
+    printf("Too many arguments");
+    return 1;
+  } else if (argc == 2)
+  {
+    ident = {argv[1]};
+  } else
+  {
+    ident = {"anon"};
+  }
+
   const char *port = "2022";
 
   addrinfo resAddrInfo;
@@ -20,14 +36,16 @@ int main(int argc, const char **argv)
     return 1;
   }
 
+  if (send_message(sfd, MT_INIT, ident, resAddrInfo) != 0)
+    return 1;
+
   while (true)
   {
     std::string input;
     printf(">");
     std::getline(std::cin, input);
-    ssize_t res = sendto(sfd, input.c_str(), input.size(), 0, resAddrInfo.ai_addr, resAddrInfo.ai_addrlen);
-    if (res == -1)
-      std::cout << strerror(errno) << std::endl;
+    if (send_message(sfd, MT_DATA, input, resAddrInfo) != 0)
+      return 1;
   }
   return 0;
 }
