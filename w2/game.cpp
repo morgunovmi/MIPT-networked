@@ -67,19 +67,23 @@ void onNewPlayerJoined(ENetPeer* newPeer, PlayerMap& players)
     printf("Assigned name: %s and id: %zu\n", newPlayer.name.data(), newPlayer.id);
 }
 
-void sendPings(ENetPeer* peerToSend, const PlayerMap& players)
+void sendPings(ENetPeer *peerToSend, const PlayerMap &players)
 {
-    for (const auto &[peer, info]: players)
+    std::stringstream pingTable;
+    pingTable << "Current pings:\n";
+    for (const auto &[peer, info] : players)
     {
         if (peer != peerToSend)
         {
-            std::stringstream msg;
-            msg << info.name << "'s ping is : " << peer->roundTripTime << '\n';
-            ENetPacket *packet = enet_packet_create(msg.str().data(),
-                                                    msg.str().length() + 1,
-                                                    ENET_PACKET_FLAG_UNSEQUENCED);
-            enet_peer_send(peer, 1, packet);
+          pingTable << info.name << ": " << peer->roundTripTime << '\n';
         }
+    }
+    if (players.size() > 1)
+    {
+        ENetPacket *packet = enet_packet_create(pingTable.str().data(),
+                                                pingTable.str().length() + 1,
+                                                ENET_PACKET_FLAG_UNSEQUENCED);
+        enet_peer_send(peerToSend, 1, packet);
     }
 }
 
