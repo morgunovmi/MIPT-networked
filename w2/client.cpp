@@ -1,5 +1,6 @@
 #include <enet/enet.h>
 #include <iostream>
+#include <cstring>
 
 void send_fragmented_packet(ENetPeer *peer)
 {
