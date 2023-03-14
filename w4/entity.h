@@ -7,5 +7,6 @@ struct Entity
 {
   Color color = {0, 255, 0, 255};
   Vector2 pos = {0.f, 0.f};
+  float size = 20.f;
   uint16_t eid = invalid_entity;
 };

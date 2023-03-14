@@ -44,15 +44,16 @@ void send_entity_state(ENetPeer *peer, uint16_t eid, Vector2 pos)
   enet_peer_send(peer, 1, packet);
 }
 
-void send_snapshot(ENetPeer *peer, uint16_t eid, Vector2 pos)
+void send_snapshot(ENetPeer *peer, uint16_t eid, Vector2 pos, float size)
 {
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t) +
-                                                   sizeof(Vector2),
+                                                   sizeof(Vector2) + sizeof(float),
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
   Bitstream bs{packet->data};
   bs.write(E_SERVER_TO_CLIENT_SNAPSHOT);
   bs.write(eid);
   bs.write(pos);
+  bs.write(size);
 
   enet_peer_send(peer, 1, packet);
 }
@@ -87,12 +88,13 @@ void deserialize_entity_state(ENetPacket *packet, uint16_t &eid, Vector2& pos)
   bs.read(pos);
 }
 
-void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, Vector2& pos)
+void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, Vector2& pos, float &size)
 {
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
   bs.read(eid);
   bs.read(pos);
+  bs.read(size);
 }
 

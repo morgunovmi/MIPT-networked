@@ -14,9 +14,10 @@ static std::map<uint16_t, Vector2> aiTargets;
 
 std::random_device rd{};
 std::default_random_engine gen{rd()};
-std::uniform_real_distribution<float> posDistr{-1000.f, 1000.f};
+std::uniform_real_distribution<float> posDistr{-600.f, 600.f};
 std::uniform_real_distribution<float> playerPosDistr{-100.f, 100.f};
 std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
+std::uniform_real_distribution<float> sizeDistr{20.f, 50.f};
 
 const uint16_t TICKRATE = 60;
 
@@ -40,11 +41,11 @@ void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
     .x = playerPosDistr(gen),
     .y = playerPosDistr(gen)
   };
-  Entity ent = {color, pos, newEid};
+  float size = sizeDistr(gen);
+  Entity ent = {color, pos, size, newEid};
   entities.push_back(ent);
 
   controlledMap[newEid] = peer;
-
 
   // send info about new entity to everyone
   for (size_t i = 0; i < host->peerCount; ++i)
@@ -73,12 +74,15 @@ void generate_ai_entities()
                   colorDistr(gen),
                   colorDistr(gen),
                   255};
-    float x = posDistr(gen);
-    float y = posDistr(gen);
-    Entity ent = {color, x, y, i};
+    Vector2 pos
+    {
+      .x = posDistr(gen),
+      .y = posDistr(gen)
+    };
+    float size = sizeDistr(gen);
+    
+    Entity ent = {color, pos, size, i};
     entities.push_back(ent);
-
-    controlledMap[i] = nullptr;
 
     Vector2 target {
       .x = posDistr(gen),
@@ -139,6 +143,35 @@ int main(int argc, const char **argv)
     static int t = 0;
     for (Entity &e : entities)
     {
+      for (Entity &e_two : entities)
+      {
+        if (e_two.eid != e.eid)
+        {
+          if (Vector2Distance(e.pos, e_two.pos) < e.size + e_two.size)
+          {
+            if (e.size > e_two.size)
+            {
+              e.size = std::min(e.size + e_two.size / 2.f, 300.f);
+              e_two.size = std::max(e_two.size / 2.f, 20.f);
+              e_two.pos =
+              {
+                .x = posDistr(gen),
+                .y = posDistr(gen)
+              };
+
+              if (controlledMap.contains(e_two.eid))
+              {
+                send_snapshot(controlledMap[e_two.eid], e_two.eid, e_two.pos, e_two.size);
+              }
+              if (controlledMap.contains(e.eid))
+              {
+                send_snapshot(controlledMap[e.eid], e.eid, e.pos, e.size);
+              }
+            }
+          }
+        }
+      }
+
       if (aiTargets.contains(e.eid))
       {
         if (Vector2Distance(aiTargets[e.eid], e.pos) < 1.f)
@@ -153,11 +186,12 @@ int main(int argc, const char **argv)
         e.pos.x += dir.x * 1 / TICKRATE * 100.f;
         e.pos.y += dir.y * 1 / TICKRATE * 100.f;
       }
+
       for (size_t i = 0; i < server->peerCount; ++i)
       {
         ENetPeer *peer = &server->peers[i];
-        if (controlledMap[e.eid] != peer)
-          send_snapshot(peer, e.eid, e.pos);
+        if (!controlledMap.contains(e.eid) || controlledMap[e.eid] != peer)
+          send_snapshot(peer, e.eid, e.pos, e.size);
       }
     }
     usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));

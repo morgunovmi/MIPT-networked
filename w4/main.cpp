@@ -33,12 +33,14 @@ void on_snapshot(ENetPacket *packet)
 {
   uint16_t eid = invalid_entity;
   Vector2 pos;
-  deserialize_snapshot(packet, eid, pos);
+  float size;
+  deserialize_snapshot(packet, eid, pos, size);
   // TODO: Direct adressing, of course!
   for (Entity &e : entities)
     if (e.eid == eid)
     {
       e.pos = pos;
+      e.size = size;
     }
 }
 
@@ -146,7 +148,7 @@ int main(int argc, const char **argv)
       BeginMode2D(camera);
         for (const Entity &e : entities)
         {
-          DrawCircle(e.pos.x, e.pos.y, 20.f, e.color);
+          DrawCircle(e.pos.x, e.pos.y, e.size, e.color);
         }
 
       EndMode2D();
