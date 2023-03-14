@@ -5,9 +5,20 @@
 #include <stdlib.h>
 #include <vector>
 #include <map>
+#include "raymath.h"
+#include <random>
 
 static std::vector<Entity> entities;
 static std::map<uint16_t, ENetPeer*> controlledMap;
+static std::map<uint16_t, Vector2> aiTargets;
+
+std::random_device rd{};
+std::default_random_engine gen{rd()};
+std::uniform_real_distribution<float> posDistr{-1000.f, 1000.f};
+std::uniform_real_distribution<float> playerPosDistr{-100.f, 100.f};
+std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
+
+const uint16_t TICKRATE = 60;
 
 void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
 {
@@ -20,13 +31,16 @@ void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
   for (const Entity &e : entities)
     maxEid = std::max(maxEid, e.eid);
   uint16_t newEid = maxEid + 1;
-  uint32_t color = 0xff000000 +
-                   0x00440000 * (rand() % 5) +
-                   0x00004400 * (rand() % 5) +
-                   0x00000044 * (rand() % 5);
-  float x = (rand() % 4) * 2.f;
-  float y = (rand() % 4) * 2.f;
-  Entity ent = {color, x, y, newEid};
+  Color color = {colorDistr(gen),
+                 colorDistr(gen),
+                 colorDistr(gen),
+                 255};
+  Vector2 pos
+  {
+    .x = playerPosDistr(gen),
+    .y = playerPosDistr(gen)
+  };
+  Entity ent = {color, pos, newEid};
   entities.push_back(ent);
 
   controlledMap[newEid] = peer;
@@ -42,14 +56,36 @@ void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
 void on_state(ENetPacket *packet)
 {
   uint16_t eid = invalid_entity;
-  float x = 0.f; float y = 0.f;
-  deserialize_entity_state(packet, eid, x, y);
+  Vector2 pos;
+  deserialize_entity_state(packet, eid, pos);
   for (Entity &e : entities)
     if (e.eid == eid)
     {
-      e.x = x;
-      e.y = y;
+      e.pos = pos;
     }
+}
+
+void generate_ai_entities()
+{
+  for (uint16_t i = 0; i < 10; ++i)
+  {
+    Color color = {colorDistr(gen),
+                  colorDistr(gen),
+                  colorDistr(gen),
+                  255};
+    float x = posDistr(gen);
+    float y = posDistr(gen);
+    Entity ent = {color, x, y, i};
+    entities.push_back(ent);
+
+    controlledMap[i] = nullptr;
+
+    Vector2 target {
+      .x = posDistr(gen),
+      .y = posDistr(gen)
+    };
+    aiTargets[i] = target;
+  }
 }
 
 int main(int argc, const char **argv)
@@ -71,6 +107,8 @@ int main(int argc, const char **argv)
     printf("Cannot create ENet server\n");
     return 1;
   }
+
+  generate_ai_entities();
 
   while (true)
   {
@@ -99,14 +137,30 @@ int main(int argc, const char **argv)
       };
     }
     static int t = 0;
-    for (const Entity &e : entities)
+    for (Entity &e : entities)
+    {
+      if (aiTargets.contains(e.eid))
+      {
+        if (Vector2Distance(aiTargets[e.eid], e.pos) < 1.f)
+        {
+          Vector2 target {
+            .x = posDistr(gen),
+            .y = posDistr(gen)
+          };
+          aiTargets[e.eid] = target;
+        }
+        Vector2 dir = Vector2Normalize(Vector2Subtract(aiTargets[e.eid], e.pos));
+        e.pos.x += dir.x * 1 / TICKRATE * 100.f;
+        e.pos.y += dir.y * 1 / TICKRATE * 100.f;
+      }
       for (size_t i = 0; i < server->peerCount; ++i)
       {
         ENetPeer *peer = &server->peers[i];
         if (controlledMap[e.eid] != peer)
-          send_snapshot(peer, e.eid, e.x, e.y);
+          send_snapshot(peer, e.eid, e.pos);
       }
-    usleep(100000);
+    }
+    usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));
   }
 
   enet_host_destroy(server);
