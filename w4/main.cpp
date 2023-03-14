@@ -2,11 +2,12 @@
 #include <algorithm> // min/max
 #include "raylib.h"
 #include <enet/enet.h>
+#include <cstdio>
 
 #include <vector>
 #include "entity.h"
 #include "protocol.h"
-
+#include "bitstream.h"
 
 static std::vector<Entity> entities;
 static uint16_t my_entity = invalid_entity;
