@@ -1,12 +1,12 @@
 #pragma once
 #include <cstdint>
+#include "raylib.h"
 
 constexpr uint16_t invalid_entity = -1;
 struct Entity
 {
-  uint32_t color = 0xff00ffff;
-  float x = 0.f;
-  float y = 0.f;
+  Color color = {0, 255, 0, 255};
+  Vector2 pos = {0.f, 0.f};
   float speed = 0.f;
   float ori = 0.f;
 
