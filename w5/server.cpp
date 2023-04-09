@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <random>
+#include "time.h"
 
 static std::vector<Entity> entities;
 static std::map<uint16_t, ENetPeer*> controlledMap;
@@ -16,8 +17,6 @@ std::default_random_engine gen{rd()};
 std::uniform_real_distribution<float> posDistr{-20.f, 20.f};
 std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
 std::uniform_real_distribution<float> angleDistr{0, PI};
-
-const uint16_t TICKRATE = 60;
 
 void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
 {
@@ -117,22 +116,26 @@ int main(int argc, const char **argv)
         break;
       };
     }
-    static int t = 0;
+
+    static int tick = 0;
+    std::vector<EntityState> snapshot;
     for (Entity &e : entities)
     {
       // simulate
       simulate_entity(e, dt);
+      snapshot.push_back({e.eid, e.pos, e.ori});
+    }
 
-      // send
-      for (size_t i = 0; i < server->peerCount; ++i)
-      {
-        ENetPeer *peer = &server->peers[i];
-        // skip this here in this implementation
-        //if (controlledMap[e.eid] != peer)
-        send_snapshot(peer, e.eid, e.pos, e.ori);
-      }
+    // send
+    for (size_t i = 0; i < server->peerCount; ++i)
+    {
+      ENetPeer *peer = &server->peers[i];
+      // skip this here in this implementation
+      //if (controlledMap[e.eid] != peer)
+      send_snapshot(peer, enet_time_get(), snapshot);
     }
     usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));
+    // ++tick;
   }
 
   enet_host_destroy(server);

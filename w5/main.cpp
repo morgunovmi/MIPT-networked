@@ -9,6 +9,7 @@
 #include <vector>
 #include "entity.h"
 #include "protocol.h"
+#include "time.h"
 
 
 static std::vector<Entity> entities;
@@ -32,16 +33,19 @@ void on_set_controlled_entity(ENetPacket *packet)
 
 void on_snapshot(ENetPacket *packet)
 {
-  uint16_t eid = invalid_entity;
-  Vector2 pos = {0.f, 0.f}; float ori = 0.f;
-  deserialize_snapshot(packet, eid, pos, ori);
+  Snapshot snapshot{};
+  float timestamp = 0.f;
+  deserialize_snapshot(packet, timestamp, snapshot);
   // TODO: Direct adressing, of course!
-  for (Entity &e : entities)
-    if (e.eid == eid)
-    {
-      e.pos = pos;
-      e.ori = ori;
-    }
+  for (EntityState &es : snapshot)
+  {
+    for (Entity &e : entities)
+      if (e.eid == es.eid)
+      {
+        e.pos = es.pos;
+        e.ori = es.ori;
+      }
+  }
 }
 
 int main(int argc, const char **argv)
