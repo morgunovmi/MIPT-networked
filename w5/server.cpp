@@ -6,10 +6,11 @@
 #include <stdlib.h>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <random>
 #include "time.h"
 
-static std::vector<Entity> entities;
+static std::unordered_map<uint16_t, Entity> entities;
 static std::map<uint16_t, ENetPeer*> controlledMap;
 
 std::random_device rd{};
@@ -18,16 +19,16 @@ std::uniform_real_distribution<float> posDistr{-20.f, 20.f};
 std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
 std::uniform_real_distribution<float> angleDistr{0, PI};
 
-void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
+void on_join(ENetPeer *peer, ENetHost *host, uint32_t timestamp)
 {
   // send all entities
-  for (const Entity &ent : entities)
+  for (const auto &[eid, ent] : entities)
     send_new_entity(peer, ent);
 
   // find max eid
   uint16_t maxEid = entities.empty() ? invalid_entity : entities[0].eid;
-  for (const Entity &e : entities)
-    maxEid = std::max(maxEid, e.eid);
+  for (const auto &[eid, entity] : entities)
+    maxEid = std::max(maxEid, eid);
   uint16_t newEid = maxEid + 1;
   Color color = {
     colorDistr(gen),
@@ -40,8 +41,8 @@ void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
     .y = posDistr(gen)
   };
 
-  Entity ent = {color, pos, 0.f, angleDistr(gen), 0.f, 0.f, newEid};
-  entities.push_back(ent);
+  Entity ent = {color, pos, 0.f, angleDistr(gen), 0.f, 0.f, newEid, timestamp};
+  entities[newEid] = ent;
 
   controlledMap[newEid] = peer;
 
@@ -58,11 +59,11 @@ void on_input(ENetPacket *packet)
   uint16_t eid = invalid_entity;
   float thr = 0.f; float steer = 0.f;
   deserialize_entity_input(packet, eid, thr, steer);
-  for (Entity &e : entities)
-    if (e.eid == eid)
+  for (auto &[entity_id, entity] : entities)
+    if (entity_id == eid)
     {
-      e.thr = thr;
-      e.steer = steer;
+      entity.thr = thr;
+      entity.steer = steer;
     }
 }
 
@@ -104,7 +105,7 @@ int main(int argc, const char **argv)
         switch (get_packet_type(event.packet))
         {
           case E_CLIENT_TO_SERVER_JOIN:
-            on_join(event.packet, event.peer, server);
+            on_join(event.peer, server, time_to_tick(curTime));
             break;
           case E_CLIENT_TO_SERVER_INPUT:
             on_input(event.packet);
@@ -117,12 +118,15 @@ int main(int argc, const char **argv)
       };
     }
 
-    static int tick = 0;
     std::vector<EntityState> snapshot;
-    for (Entity &e : entities)
+    for (auto &[eid, e] : entities)
     {
       // simulate
-      simulate_entity(e, dt);
+      for (; e.tick < time_to_tick(curTime); ++e.tick)
+      {
+        simulate_entity(e, dt);
+      }
+
       snapshot.push_back({e.eid, e.pos, e.ori});
     }
 
@@ -130,12 +134,9 @@ int main(int argc, const char **argv)
     for (size_t i = 0; i < server->peerCount; ++i)
     {
       ENetPeer *peer = &server->peers[i];
-      // skip this here in this implementation
-      //if (controlledMap[e.eid] != peer)
-      send_snapshot(peer, enet_time_get(), snapshot);
+      send_snapshot(peer, time_to_tick(curTime), snapshot);
     }
     usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));
-    // ++tick;
   }
 
   enet_host_destroy(server);

@@ -6,7 +6,7 @@ constexpr uint16_t TICKRATE = 64;
 constexpr float FIXED_DT_MS = 1.0f / TICKRATE * 1000.0f;
 const int OFFSET_MS = 100 + FIXED_DT_MS;
 
-int time_to_tick(float time)
+inline uint32_t time_to_tick(uint32_t time)
 {
-  return static_cast<int>(time / FIXED_DT_MS);
+  return time / FIXED_DT_MS;
 }

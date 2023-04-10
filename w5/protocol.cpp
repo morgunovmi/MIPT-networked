@@ -45,16 +45,16 @@ void send_entity_input(ENetPeer *peer, uint16_t eid, float thr, float steer)
   enet_peer_send(peer, 1, packet);
 }
 
-void send_snapshot(ENetPeer *peer, float timestamp, const Snapshot &snapshot)
+void send_snapshot(ENetPeer *peer, uint32_t tick, const Snapshot &snapshot)
 {
-  ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(float) +
+  ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint32_t) +
                                                    sizeof(uint64_t) + 
                                                    snapshot.size() * sizeof(EntityState),
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
 
   Bitstream bs{packet->data};
   bs.write(E_SERVER_TO_CLIENT_SNAPSHOT);
-  bs.write(timestamp);
+  bs.write(tick);
   bs.write(snapshot.size());
   bs.write(snapshot);
 
@@ -92,12 +92,12 @@ void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, flo
   bs.read(steer);
 }
 
-void deserialize_snapshot(ENetPacket *packet, float &timestamp, Snapshot &snapshot)
+void deserialize_snapshot(ENetPacket *packet, uint32_t &tick, Snapshot &snapshot)
 {
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
-  bs.read(timestamp);
+  bs.read(tick);
   uint64_t size = 0;
   bs.read(size);
   bs.read(snapshot, size);

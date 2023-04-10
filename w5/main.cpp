@@ -7,23 +7,24 @@
 
 #include <cstdio>
 #include <vector>
+#include <unordered_map>
+#include <deque>
 #include "entity.h"
 #include "protocol.h"
 #include "time.h"
 
-
-static std::vector<Entity> entities;
+static std::unordered_map<uint16_t, Entity> entities;
+static std::deque<std::pair<uint32_t, Snapshot>> snapshot_history;
 static uint16_t my_entity = invalid_entity;
 
 void on_new_entity_packet(ENetPacket *packet)
 {
   Entity newEntity;
   deserialize_new_entity(packet, newEntity);
-  // TODO: Direct adressing, of course!
-  for (const Entity &e : entities)
-    if (e.eid == newEntity.eid)
-      return; // don't need to do anything, we already have entity
-  entities.push_back(newEntity);
+  if (!entities.contains(newEntity.eid))
+  {
+    entities[newEntity.eid] = std::move(newEntity);
+  }
 }
 
 void on_set_controlled_entity(ENetPacket *packet)
@@ -34,18 +35,10 @@ void on_set_controlled_entity(ENetPacket *packet)
 void on_snapshot(ENetPacket *packet)
 {
   Snapshot snapshot{};
-  float timestamp = 0.f;
-  deserialize_snapshot(packet, timestamp, snapshot);
-  // TODO: Direct adressing, of course!
-  for (EntityState &es : snapshot)
-  {
-    for (Entity &e : entities)
-      if (e.eid == es.eid)
-      {
-        e.pos = es.pos;
-        e.ori = es.ori;
-      }
-  }
+  uint32_t tick = 0;
+  deserialize_snapshot(packet, tick, snapshot);
+
+  snapshot_history.push_back({tick, snapshot});
 }
 
 int main(int argc, const char **argv)
@@ -137,8 +130,8 @@ int main(int argc, const char **argv)
       bool up = IsKeyDown(KEY_UP);
       bool down = IsKeyDown(KEY_DOWN);
       // TODO: Direct adressing, of course!
-      for (Entity &e : entities)
-        if (e.eid == my_entity)
+      for (auto &[eid, e] : entities)
+        if (eid == my_entity)
         {
           // Update
           float thr = (up ? 1.f : 0.f) + (down ? -1.f : 0.f);
@@ -152,7 +145,7 @@ int main(int argc, const char **argv)
     BeginDrawing();
       ClearBackground(GRAY);
       BeginMode2D(camera);
-        for (const Entity &e : entities)
+        for (const auto &[eid, e] : entities)
         {
           const Rectangle rect = {e.pos.x, e.pos.y, 3.f, 1.f};
           DrawRectanglePro(rect, {0.f, 0.5f}, e.ori * 180.f / PI, e.color);
