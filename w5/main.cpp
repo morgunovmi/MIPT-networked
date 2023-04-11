@@ -14,17 +14,18 @@
 #include "time.h"
 
 static std::unordered_map<uint16_t, Entity> entities;
-static std::deque<std::pair<uint32_t, Snapshot>> snapshot_history;
 static uint16_t my_entity = invalid_entity;
 
 void on_new_entity_packet(ENetPacket *packet)
 {
+  printf("Received new entity\n");
   Entity newEntity;
   deserialize_new_entity(packet, newEntity);
   if (!entities.contains(newEntity.eid))
   {
     entities[newEntity.eid] = std::move(newEntity);
   }
+  printf("Eid : %d\n", newEntity.eid);
 }
 
 void on_set_controlled_entity(ENetPacket *packet)
@@ -34,11 +35,14 @@ void on_set_controlled_entity(ENetPacket *packet)
 
 void on_snapshot(ENetPacket *packet)
 {
-  Snapshot snapshot{};
-  uint32_t tick = 0;
-  deserialize_snapshot(packet, tick, snapshot);
+  uint16_t eid = invalid_entity;
+  EntitySnapshot snapshot{};
+  deserialize_snapshot(packet, eid, snapshot);
+  auto &entity = entities[eid];
+  entity.pos = snapshot.pos;
+  entity.ori = snapshot.ori;
 
-  snapshot_history.push_back({tick, snapshot});
+  printf("Received snapshot : %d : %f : %f : %f\n", eid, entity.pos.x, entity.pos.y, entity.ori);
 }
 
 int main(int argc, const char **argv)
@@ -138,7 +142,7 @@ int main(int argc, const char **argv)
           float steer = (left ? -1.f : 0.f) + (right ? 1.f : 0.f);
 
           // Send
-          send_entity_input(serverPeer, my_entity, thr, steer);
+          send_entity_input(serverPeer, my_entity, {e.tick, thr, steer});
         }
     }
 

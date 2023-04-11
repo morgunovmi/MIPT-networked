@@ -31,31 +31,28 @@ void send_set_controlled_entity(ENetPeer *peer, uint16_t eid)
   enet_peer_send(peer, 0, packet);
 }
 
-void send_entity_input(ENetPeer *peer, uint16_t eid, float thr, float steer)
+void send_entity_input(ENetPeer *peer, uint16_t eid, const EntityInput &input)
 {
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t) +
-                                                   2 * sizeof(float),
+                                                   sizeof(EntityInput),
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
   Bitstream bs{packet->data};
   bs.write(E_CLIENT_TO_SERVER_INPUT);
   bs.write(eid);
-  bs.write(thr);
-  bs.write(steer);
+  bs.write(input);
 
   enet_peer_send(peer, 1, packet);
 }
 
-void send_snapshot(ENetPeer *peer, uint32_t tick, const Snapshot &snapshot)
+void send_snapshot(ENetPeer *peer, uint16_t eid, const EntitySnapshot &snapshot)
 {
-  ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint32_t) +
-                                                   sizeof(uint64_t) + 
-                                                   snapshot.size() * sizeof(EntityState),
+  ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t) +
+                                                   sizeof(EntitySnapshot),
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
 
   Bitstream bs{packet->data};
   bs.write(E_SERVER_TO_CLIENT_SNAPSHOT);
-  bs.write(tick);
-  bs.write(snapshot.size());
+  bs.write(eid);
   bs.write(snapshot);
 
   enet_peer_send(peer, 1, packet);
@@ -82,24 +79,21 @@ void deserialize_set_controlled_entity(ENetPacket *packet, uint16_t &eid)
   bs.read(eid);
 }
 
-void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, float &steer)
+void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, EntityInput &input)
 {
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
   bs.read(eid);
-  bs.read(thr);
-  bs.read(steer);
+  bs.read(input);
 }
 
-void deserialize_snapshot(ENetPacket *packet, uint32_t &tick, Snapshot &snapshot)
+void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, EntitySnapshot &snapshot)
 {
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
-  bs.read(tick);
-  uint64_t size = 0;
-  bs.read(size);
-  bs.read(snapshot, size);
+  bs.read(eid);
+  bs.read(snapshot);
 }
 

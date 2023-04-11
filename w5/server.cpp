@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <algorithm>
 #include <random>
 #include "time.h"
 
@@ -19,17 +20,21 @@ std::uniform_real_distribution<float> posDistr{-20.f, 20.f};
 std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
 std::uniform_real_distribution<float> angleDistr{0, PI};
 
-void on_join(ENetPeer *peer, ENetHost *host, uint32_t timestamp)
+void on_join(ENetPeer *peer, ENetHost *host, uint32_t tick)
 {
   // send all entities
   for (const auto &[eid, ent] : entities)
     send_new_entity(peer, ent);
 
   // find max eid
-  uint16_t maxEid = entities.empty() ? invalid_entity : entities[0].eid;
-  for (const auto &[eid, entity] : entities)
-    maxEid = std::max(maxEid, eid);
+  uint16_t maxEid = entities.empty() ? invalid_entity : std::max_element(entities.cbegin(), entities.cend(),
+   [](auto &lhs, auto &rhs){ return lhs.first > rhs.first; })->first;
+
+  printf("Max eid : %d\n", maxEid);
+  
   uint16_t newEid = maxEid + 1;
+  printf("New eid : %d\n", newEid);
+
   Color color = {
     colorDistr(gen),
     colorDistr(gen),
@@ -41,11 +46,9 @@ void on_join(ENetPeer *peer, ENetHost *host, uint32_t timestamp)
     .y = posDistr(gen)
   };
 
-  Entity ent = {color, pos, 0.f, angleDistr(gen), 0.f, 0.f, newEid, timestamp};
+  Entity ent = {color, pos, 0.f, angleDistr(gen), 0.f, 0.f, newEid, tick};
   entities[newEid] = ent;
-
   controlledMap[newEid] = peer;
-
 
   // send info about new entity to everyone
   for (size_t i = 0; i < host->peerCount; ++i)
@@ -57,14 +60,11 @@ void on_join(ENetPeer *peer, ENetHost *host, uint32_t timestamp)
 void on_input(ENetPacket *packet)
 {
   uint16_t eid = invalid_entity;
-  float thr = 0.f; float steer = 0.f;
-  deserialize_entity_input(packet, eid, thr, steer);
-  for (auto &[entity_id, entity] : entities)
-    if (entity_id == eid)
-    {
-      entity.thr = thr;
-      entity.steer = steer;
-    }
+  EntityInput input{};
+  deserialize_entity_input(packet, eid, input);
+  auto &entity = entities[eid];
+  entity.thr = input.thr;
+  entity.steer = input.steer;
 }
 
 int main(int argc, const char **argv)
@@ -118,23 +118,24 @@ int main(int argc, const char **argv)
       };
     }
 
-    std::vector<EntityState> snapshot;
+    printf("Num entities rn : %d\n", entities.size());
     for (auto &[eid, e] : entities)
     {
+      printf("On loop of entity %d\n", eid);
       // simulate
-      for (; e.tick < time_to_tick(curTime); ++e.tick)
+      size_t counter = 0;
+      for (; e.tick < time_to_tick(curTime); ++e.tick, ++counter)
       {
         simulate_entity(e, dt);
       }
+      printf("After simulation(simulated %d times) : %f : %f\n", counter, e.pos.x, e.pos.y);
 
-      snapshot.push_back({e.eid, e.pos, e.ori});
-    }
-
-    // send
-    for (size_t i = 0; i < server->peerCount; ++i)
-    {
-      ENetPeer *peer = &server->peers[i];
-      send_snapshot(peer, time_to_tick(curTime), snapshot);
+      // send
+      for (size_t i = 0; i < server->peerCount; ++i)
+      {
+        ENetPeer *peer = &server->peers[i];
+        send_snapshot(peer, eid, {e.tick, e.pos, e.ori});
+      }
     }
     usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));
   }

@@ -4,13 +4,18 @@
 #include "raylib.h"
 
 constexpr uint16_t invalid_entity = -1;
-struct EntityState
+struct EntitySnapshot
 {
-  uint16_t eid = invalid_entity;
+  uint32_t tick;
   Vector2 pos;
   float ori;
 };
-using Snapshot = std::vector<EntityState>;
+struct EntityInput
+{
+  uint32_t tick;
+  float thr;
+  float steer;
+};
 
 struct Entity
 {
