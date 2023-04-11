@@ -29,12 +29,8 @@ void on_join(ENetPeer *peer, ENetHost *host, uint32_t tick)
   // find max eid
   uint16_t maxEid = entities.empty() ? invalid_entity : std::max_element(entities.cbegin(), entities.cend(),
    [](auto &lhs, auto &rhs){ return lhs.first > rhs.first; })->first;
-
-  printf("Max eid : %d\n", maxEid);
   
   uint16_t newEid = maxEid + 1;
-  printf("New eid : %d\n", newEid);
-
   Color color = {
     colorDistr(gen),
     colorDistr(gen),
@@ -87,12 +83,10 @@ int main(int argc, const char **argv)
     return 1;
   }
 
-  uint32_t lastTime = enet_time_get();
   while (true)
   {
     uint32_t curTime = enet_time_get();
-    float dt = (curTime - lastTime) * 0.001f;
-    lastTime = curTime;
+    uint32_t curTick = time_to_tick(curTime);
     ENetEvent event;
     while (enet_host_service(server, &event, 0) > 0)
     {
@@ -105,7 +99,7 @@ int main(int argc, const char **argv)
         switch (get_packet_type(event.packet))
         {
           case E_CLIENT_TO_SERVER_JOIN:
-            on_join(event.peer, server, time_to_tick(curTime));
+            on_join(event.peer, server, curTick);
             break;
           case E_CLIENT_TO_SERVER_INPUT:
             on_input(event.packet);
@@ -118,15 +112,14 @@ int main(int argc, const char **argv)
       };
     }
 
-    printf("Num entities rn : %d\n", entities.size());
     for (auto &[eid, e] : entities)
     {
-      printf("On loop of entity %d\n", eid);
+      printf("On loop of entity %d, tick : %d\n", eid, e.tick);
       // simulate
       size_t counter = 0;
-      for (; e.tick < time_to_tick(curTime); ++e.tick, ++counter)
+      for (; e.tick < curTick; ++e.tick, ++counter)
       {
-        simulate_entity(e, dt);
+        simulate_entity(e, FIXED_DT_MS * 0.001f);
       }
       printf("After simulation(simulated %d times) : %f : %f\n", counter, e.pos.x, e.pos.y);
 
