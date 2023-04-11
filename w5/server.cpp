@@ -124,10 +124,13 @@ int main(int argc, const char **argv)
       printf("After simulation(simulated %d times) : %f : %f\n", counter, e.pos.x, e.pos.y);
 
       // send
-      for (size_t i = 0; i < server->peerCount; ++i)
+      if (counter > 0)
       {
-        ENetPeer *peer = &server->peers[i];
-        send_snapshot(peer, eid, {e.tick, e.pos, e.ori});
+        for (size_t i = 0; i < server->peerCount; ++i)
+        {
+            ENetPeer *peer = &server->peers[i];
+            send_snapshot(peer, eid, {e.tick, e.pos, e.ori});
+        }
       }
     }
     usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));
