@@ -15,6 +15,8 @@
 
 static std::unordered_map<uint16_t, Entity> entities;
 static std::unordered_map<uint16_t, std::deque<EntitySnapshot>> entitySnapshots;
+static std::vector<EntitySnapshot> localSnapshotHistory;
+static std::vector<EntityInput> localInputHistory;
 static uint16_t my_entity = invalid_entity;
 
 void on_new_entity_packet(ENetPacket *packet)
@@ -34,13 +36,46 @@ void on_set_controlled_entity(ENetPacket *packet)
   deserialize_set_controlled_entity(packet, my_entity);
 }
 
+void clear_snapshot_history(uint32_t tick)
+{
+  std::erase_if(localSnapshotHistory, [tick](auto &snapshot){ return snapshot.tick < tick; });
+  std::erase_if(localInputHistory, [tick](auto &input){ return input.tick < tick; });
+}
+
+void resimulate_me(EntitySnapshot snapshot)
+{
+  auto &this_entity = entities[my_entity];
+  this_entity.pos = snapshot.pos;
+  this_entity.ori = snapshot.ori;
+  for (const auto &input : localInputHistory)
+  {
+    this_entity.thr = input.thr;
+    this_entity.steer = input.steer;
+    simulate_entity(this_entity, FIXED_DT_MS * 0.001f);
+  }
+}
+
 void on_snapshot(ENetPacket *packet)
 {
   uint16_t eid = invalid_entity;
   EntitySnapshot snapshot{};
   deserialize_snapshot(packet, eid, snapshot);
   snapshot.tick += time_to_tick(OFFSET_MS);
-  entitySnapshots[eid].push_back(snapshot);
+  if (eid == my_entity)
+  {
+    clear_snapshot_history(snapshot.tick);
+    auto local_snapshot = localSnapshotHistory.front();
+    if (local_snapshot.ori != snapshot.ori
+        || local_snapshot.pos.x != snapshot.pos.x
+        || local_snapshot.pos.y != snapshot.pos.y)
+    {
+      resimulate_me(snapshot);
+    }
+  }
+  else 
+  {
+    entitySnapshots[eid].push_back(snapshot);
+  }
 }
 
 void interpolate()
@@ -50,9 +85,6 @@ void interpolate()
   
   for (auto &[eid, e] : entities)
   {
-    if (eid == my_entity)
-      continue;
-
     if (entitySnapshots[eid].size() < 2)
       continue;
 
@@ -167,6 +199,8 @@ int main(int argc, const char **argv)
       for (; this_entity.tick < time_to_tick(enet_time_get()); ++this_entity.tick)
       {
         simulate_entity(this_entity, FIXED_DT_MS * 0.001f);
+        localInputHistory.emplace_back(this_entity.tick, this_entity.thr, this_entity.steer);
+        localSnapshotHistory.emplace_back(this_entity.tick, this_entity.pos, this_entity.ori);
       }
       // Send
       send_entity_input(serverPeer, my_entity, {this_entity.tick, thr, steer});
