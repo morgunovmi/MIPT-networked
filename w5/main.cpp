@@ -14,7 +14,6 @@
 #include "time.h"
 
 static std::unordered_map<uint16_t, Entity> entities;
-static std::unordered_map<uint16_t, std::deque<EntitySnapshot>> entitiesSnapshots;
 static uint16_t my_entity = invalid_entity;
 
 void on_new_entity_packet(ENetPacket *packet)
@@ -24,7 +23,6 @@ void on_new_entity_packet(ENetPacket *packet)
   if (!entities.contains(newEntity.eid))
   {
     entities[newEntity.eid] = std::move(newEntity);
-    entitiesSnapshots[newEntity.eid].emplace_back(newEntity.tick, newEntity.pos, newEntity.ori);
   }
 }
 
@@ -39,36 +37,9 @@ void on_snapshot(ENetPacket *packet)
   EntitySnapshot snapshot{};
   deserialize_snapshot(packet, eid, snapshot);
   snapshot.tick += time_to_tick(OFFSET_MS);
-  entitiesSnapshots[eid].push_back(snapshot);
-
-  // printf("Received snapshot : %d : %f : %f : %f\n", eid, entity.pos.x, entity.pos.y, entity.ori);
-}
-
-void interpolate()
-{
-  uint32_t curTime = enet_time_get();
-  for (auto &[eid, e] : entities)
-  {
-    auto &snapshots = entitiesSnapshots[eid];
-    auto &snapshot_a = snapshots.front();
-    if (time_to_tick(curTime) < snapshot_a.tick)
-    {
-      e.pos = snapshot_a.pos;
-      e.ori = snapshot_a.ori;
-      continue;
-    }
-    auto &snapshot_b = snapshots[1];
-    if (time_to_tick(curTime) >= snapshot_b.tick)
-    {
-      snapshots.pop_front();
-    }
-    auto &first = snapshots.front();
-    auto &second = snapshots[1];
-    const auto t = static_cast<float>(time_to_tick(curTime) - first.tick) / (second.tick - first.tick);
-    e.pos.x = std::lerp(first.pos.x, second.pos.x, t);
-    e.pos.y = std::lerp(first.pos.y, second.pos.y, t);
-    e.ori = std::lerp(first.ori, second.ori, t);
-  }
+  auto &entity = entities[eid];
+  entity.pos = snapshot.pos;
+  entity.ori = snapshot.ori;
 }
 
 int main(int argc, const char **argv)
@@ -166,7 +137,6 @@ int main(int argc, const char **argv)
       // Send
       send_entity_input(serverPeer, my_entity, {this_entity.tick, thr, steer});
     }
-    interpolate();
 
     BeginDrawing();
       ClearBackground(GRAY);

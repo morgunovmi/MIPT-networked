@@ -133,6 +133,7 @@ int main(int argc, const char **argv)
         }
       }
     }
+    enet_host_flush(server);
     usleep(static_cast<useconds_t>(1.f / TICKRATE * 1000000.f));
   }
 
