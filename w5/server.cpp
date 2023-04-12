@@ -114,14 +114,12 @@ int main(int argc, const char **argv)
 
     for (auto &[eid, e] : entities)
     {
-      printf("On loop of entity %d, tick : %d\n", eid, e.tick);
       // simulate
       size_t counter = 0;
       for (; e.tick < curTick; ++e.tick, ++counter)
       {
         simulate_entity(e, FIXED_DT_MS * 0.001f);
       }
-      printf("After simulation(simulated %d times) : %f : %f\n", counter, e.pos.x, e.pos.y);
 
       // send
       if (counter > 0)

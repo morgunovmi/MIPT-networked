@@ -190,7 +190,6 @@ int main(int argc, const char **argv)
       bool right = IsKeyDown(KEY_RIGHT);
       bool up = IsKeyDown(KEY_UP);
       bool down = IsKeyDown(KEY_DOWN);
-      // TODO: Direct adressing, of course!
       auto &this_entity = entities[my_entity];
       float thr = (up ? 1.f : 0.f) + (down ? -1.f : 0.f);
       float steer = (left ? -1.f : 0.f) + (right ? 1.f : 0.f);
