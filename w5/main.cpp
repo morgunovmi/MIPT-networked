@@ -50,6 +50,9 @@ void interpolate()
   
   for (auto &[eid, e] : entities)
   {
+    if (eid == my_entity)
+      continue;
+
     if (entitySnapshots[eid].size() < 2)
       continue;
 
@@ -158,7 +161,13 @@ int main(int argc, const char **argv)
       auto &this_entity = entities[my_entity];
       float thr = (up ? 1.f : 0.f) + (down ? -1.f : 0.f);
       float steer = (left ? -1.f : 0.f) + (right ? 1.f : 0.f);
+      this_entity.thr = thr;
+      this_entity.steer = steer;
 
+      for (; this_entity.tick < time_to_tick(enet_time_get()); ++this_entity.tick)
+      {
+        simulate_entity(this_entity, FIXED_DT_MS * 0.001f);
+      }
       // Send
       send_entity_input(serverPeer, my_entity, {this_entity.tick, thr, steer});
     }
