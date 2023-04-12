@@ -14,6 +14,7 @@
 #include "time.h"
 
 static std::unordered_map<uint16_t, Entity> entities;
+static std::unordered_map<uint16_t, std::deque<EntitySnapshot>> entitySnapshots;
 static uint16_t my_entity = invalid_entity;
 
 void on_new_entity_packet(ENetPacket *packet)
@@ -23,6 +24,8 @@ void on_new_entity_packet(ENetPacket *packet)
   if (!entities.contains(newEntity.eid))
   {
     entities[newEntity.eid] = std::move(newEntity);
+    entitySnapshots[newEntity.eid].emplace_back(newEntity.tick + time_to_tick(OFFSET_MS),
+                                                newEntity.pos, newEntity.ori);
   }
 }
 
@@ -37,9 +40,30 @@ void on_snapshot(ENetPacket *packet)
   EntitySnapshot snapshot{};
   deserialize_snapshot(packet, eid, snapshot);
   snapshot.tick += time_to_tick(OFFSET_MS);
-  auto &entity = entities[eid];
-  entity.pos = snapshot.pos;
-  entity.ori = snapshot.ori;
+  entitySnapshots[eid].push_back(snapshot);
+}
+
+void interpolate()
+{
+  uint32_t curTime = enet_time_get();
+  uint32_t curTick = time_to_tick(curTime);
+  
+  for (auto &[eid, e] : entities)
+  {
+    if (entitySnapshots[eid].size() < 2)
+      continue;
+
+    if (curTick > entitySnapshots[eid][1].tick)
+      entitySnapshots[eid].pop_front();
+
+    auto &snapshot_a = entitySnapshots[eid].front();
+    auto &snapshot_b = entitySnapshots[eid][1];
+    const auto t = static_cast<float>(time_to_tick(curTime) - snapshot_a.tick) 
+                                      / (snapshot_b.tick - snapshot_a.tick);
+    e.pos.x = std::lerp(snapshot_a.pos.x, snapshot_b.pos.x, t);
+    e.pos.y = std::lerp(snapshot_a.pos.y, snapshot_b.pos.y, t);
+    e.ori = std::lerp(snapshot_a.ori, snapshot_b.ori, t);
+  }
 }
 
 int main(int argc, const char **argv)
@@ -62,6 +86,7 @@ int main(int argc, const char **argv)
   address.port = 10131;
 
   ENetPeer *serverPeer = enet_host_connect(client, &address, 2, 0);
+  uint32_t connectTime = enet_time_get();
   if (!serverPeer)
   {
     printf("Cannot connect to server");
@@ -137,6 +162,8 @@ int main(int argc, const char **argv)
       // Send
       send_entity_input(serverPeer, my_entity, {this_entity.tick, thr, steer});
     }
+    if (enet_time_get() > connectTime + OFFSET_MS)
+      interpolate();
 
     BeginDrawing();
       ClearBackground(GRAY);
