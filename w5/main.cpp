@@ -63,7 +63,8 @@ void on_snapshot(ENetPacket *packet)
   snapshot.tick += time_to_tick(OFFSET_MS);
   if (eid == my_entity)
   {
-    clear_snapshot_history(snapshot.tick);
+    clear_snapshot_history(snapshot.tick - 1);
+
     auto local_snapshot = localSnapshotHistory.front();
     if (local_snapshot.ori != snapshot.ori
         || local_snapshot.pos.x != snapshot.pos.x
