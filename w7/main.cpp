@@ -8,6 +8,7 @@
 #include <vector>
 #include "entity.h"
 #include "protocol.h"
+#include <cstdio>
 
 
 static std::vector<Entity> entities;
