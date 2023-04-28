@@ -10,6 +10,10 @@
 #include "protocol.h"
 #include <cstdio>
 
+#include "quantisation.h"
+#include <cassert>
+#include <random>
+
 
 static std::vector<Entity> entities;
 static uint16_t my_entity = invalid_entity;
@@ -45,8 +49,38 @@ void on_snapshot(ENetPacket *packet)
     }
 }
 
+void test_quantisation()
+{
+  // Unit
+
+  assert(unpack_int32(packed_int32(42)) == 42);
+  assert(unpack_int32(packed_int32(1337)) == 1337);
+  assert(unpack_int32(packed_int32(420691337)) == 420691337);
+
+  assert(unpack_int32(packed_int32((1 << 6))) == (1 << 6));
+  assert(unpack_int32(packed_int32((1 << 14))) == (1 << 14));
+  assert(unpack_int32(packed_int32((1 << 30) - 1)) == (1 << 30) - 1);
+  std::cout << "Passed unit tests\n";
+
+  // Stress
+
+  std::random_device rd{};
+  std::default_random_engine gen{rd()};
+  std::uniform_int_distribution<uint32_t> distr(0, (1 << 30));
+
+  for (size_t i = 0; i < 100000; ++i)
+  {
+    const auto val = distr(gen);
+    assert(unpack_int32(packed_int32(val)) == val);
+  }
+
+  std::cout << "Passed stress tests\n";
+}
+
 int main(int argc, const char **argv)
 {
+  test_quantisation();
+
   if (enet_initialize() != 0)
   {
     printf("Cannot init ENet");

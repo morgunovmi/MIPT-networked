@@ -1,6 +1,8 @@
 #pragma once
 #include "mathUtils.h"
 #include <limits>
+#include <iostream>
+#include <bit>
 
 struct float2
 {
@@ -30,7 +32,7 @@ float unpack_float(T c, float lo, float hi, int num_bits)
 }
 
 template <typename T, int num_bits>
-  requires std::integral<T>
+  requires std::unsigned_integral<T>
 struct PackedFloat
 {
   static_assert(num_bits <= std::numeric_limits<T>::digits);
@@ -44,7 +46,7 @@ struct PackedFloat
 };
 
 template <typename T, int num_bits_x, int num_bits_y>
-  requires std::integral<T>
+  requires std::unsigned_integral<T>
 struct PackedFloat2
 {
   static_assert(num_bits_x + num_bits_y <= std::numeric_limits<T>::digits);
@@ -87,7 +89,7 @@ struct PackedFloat2
 };
 
 template <typename T, int num_bits_x, int num_bits_y, int num_bits_z>
-  requires std::integral<T>
+  requires std::unsigned_integral<T>
 struct PackedFloat3
 {
   static_assert(num_bits_x + num_bits_y + num_bits_z <= std::numeric_limits<T>::digits);
@@ -140,3 +142,80 @@ struct PackedFloat3
 };
 
 typedef PackedFloat<uint8_t, 4> float4bitsQuantized;
+
+////
+// Lossless uint packing
+
+inline bool is_little_endian() {
+  return std::endian::native == std::endian::little;
+}
+
+#ifdef _MSC_VER
+
+#include <stdlib.h>
+#define bswap_16(x) _byteswap_ushort(x)
+#define bswap_32(x) _byteswap_ulong(x)
+
+#elif defined(__APPLE__)
+
+// Mac OS X / Darwin features
+#include <libkern/OSByteOrder.h>
+#define bswap_16(x) OSSwapInt16(x)
+#define bswap_32(x) OSSwapInt32(x)
+
+#else
+
+#include <byteswap.h>
+
+#endif
+
+static uint16_t bswap_if_little_endian(uint16_t v)
+{
+  return is_little_endian() ? bswap_16(v) : v;
+}
+
+static uint32_t bswap_if_little_endian(uint32_t v)
+{
+  return is_little_endian() ? bswap_32(v) : v;
+}
+
+inline void *packed_int32(uint32_t v)
+{
+  // First 2 bits encode type
+  // 00 - u8, 01 - u16, 10 - u32
+  if (v < (1 << 6)) // 64 
+  {
+    return new uint8_t{v};
+  }
+  else if (v < (1 << 14)) // 16'384
+  {
+    const uint16_t res = (1 << 14) | v;
+    return new uint16_t{bswap_if_little_endian(res)};
+  }
+  else if (v < (1 << 30)) // 1'073'741'824
+  {
+    const uint32_t res = (1 << 31) | v;
+    return new uint32_t{bswap_if_little_endian(res)};
+  }
+  else
+  {
+    std::cerr << "Value to pack too big\n";
+    return nullptr;
+  }
+}
+
+inline uint32_t unpack_int32(void *data)
+{
+  switch ((*(uint8_t *)data) >> 6)
+  {
+    case 0:
+      return (*(uint8_t *)data) & 0x3F;
+    case 1:
+      return bswap_if_little_endian((*(uint16_t *)data)) & 0x3FFF;
+    case 2:
+      return bswap_if_little_endian((*(uint32_t *)data)) & 0x3FFFFFFF;
+    default:
+      std::cerr << "Unrecognised value\n";
+      return std::numeric_limits<uint32_t>::max();
+  }
+}

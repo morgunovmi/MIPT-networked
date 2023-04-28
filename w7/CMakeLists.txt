@@ -33,7 +33,7 @@ target_link_libraries(w7 PUBLIC raylib enet)
 
 add_executable(w7_server ${W7_SERVER_SOURCES})
 target_link_libraries(w7_server PUBLIC project_options project_warnings)
-target_link_libraries(w7_server PUBLIC raylib enet)
+target_link_libraries(w7_server PUBLIC enet)
 
 if(MSVC)
   target_link_libraries(w7 PUBLIC ws2_32.lib winmm.lib)

@@ -68,7 +68,7 @@ void send_snapshot(ENetPeer *peer, uint16_t eid, float x, float y, float ori)
   memcpy(ptr, &eid, sizeof(uint16_t)); ptr += sizeof(uint16_t);
   PositionXQuantized xPacked(x, -16, 16);
   PositionYQuantized yPacked(y, -8, 8);
-  uint8_t oriPacked = pack_float<uint8_t>(ori, -PI, PI, 8);
+  uint8_t oriPacked = pack_float<uint8_t>(ori, -MATH_PI, MATH_PI, 8);
   //printf("xPacked/unpacked %d %f\n", xPacked, x);
   memcpy(ptr, &xPacked.packedVal, sizeof(uint16_t)); ptr += sizeof(uint16_t);
   memcpy(ptr, &yPacked.packedVal, sizeof(uint16_t)); ptr += sizeof(uint16_t);
@@ -122,6 +122,6 @@ void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, float &x, float &y,
   uint8_t oriPacked = *(uint8_t*)(ptr); ptr += sizeof(uint8_t);
   x = xPackedVal.unpack(-16, 16);
   y = yPackedVal.unpack(-8, 8);
-  ori = unpack_float<uint8_t>(oriPacked, -PI, PI, 8);
+  ori = unpack_float<uint8_t>(oriPacked, -MATH_PI, MATH_PI, 8);
 }
 
