@@ -29,8 +29,9 @@ void send_set_controlled_entity(ENetPeer *peer, uint16_t eid)
                                                    ENET_PACKET_FLAG_RELIABLE);
   Bitstream bs{packet->data};
   bs.write(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
-  bs.write(eid);
+  bs.writePackedUint(eid);
 
+  enet_packet_resize(packet, bs.getOffset());
   enet_peer_send(peer, 0, packet);
 }
 
@@ -41,13 +42,14 @@ void send_entity_input(ENetPeer *peer, uint16_t eid, float thr, float ori)
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
   Bitstream bs{packet->data};
   bs.write(E_CLIENT_TO_SERVER_INPUT);
-  bs.write(eid);
+  bs.writePackedUint(eid);
 
   float4bitsQuantized thrPacked(thr, -1.f, 1.f);
   float4bitsQuantized oriPacked(ori, -1.f, 1.f);
   uint8_t thrSteerPacked = (thrPacked.packedVal << 4) | oriPacked.packedVal;
   bs.write(thrSteerPacked);
 
+  enet_packet_resize(packet, bs.getOffset());
   enet_peer_send(peer, 1, packet);
 }
 
@@ -61,12 +63,13 @@ void send_snapshot(ENetPeer *peer, uint16_t eid, Vector2 pos, float ori)
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
   Bitstream bs{packet->data};
   bs.write(E_SERVER_TO_CLIENT_SNAPSHOT);
-  bs.write(eid);
+  bs.writePackedUint(eid);
   PositionQuantized posQuantized{{pos.x, pos.y}, {-16.f, 16.f}, {-8.f, 8.f}};
   uint8_t oriPacked = pack_float<uint8_t>(ori, -MATH_PI, MATH_PI, 8);
   bs.write(posQuantized.packedVal);
   bs.write(oriPacked);
 
+  enet_packet_resize(packet, bs.getOffset());
   enet_peer_send(peer, 1, packet);
 }
 
@@ -88,7 +91,7 @@ void deserialize_set_controlled_entity(ENetPacket *packet, uint16_t &eid)
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
-  bs.read(eid);
+  bs.readPackedUint(eid);
 }
 
 void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, float &steer)
@@ -96,7 +99,7 @@ void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, flo
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
-  bs.read(eid);
+  bs.readPackedUint(eid);
   uint8_t thrSteerPacked = 0;
   bs.read(thrSteerPacked);
 
@@ -113,7 +116,7 @@ void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, Vector2 &pos, float
   MessageType type{};
   Bitstream bs{packet->data};
   bs.read(type);
-  bs.read(eid);
+  bs.readPackedUint(eid);
 
   uint32_t posPacked = 0;
   bs.read(posPacked);

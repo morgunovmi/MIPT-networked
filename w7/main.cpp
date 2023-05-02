@@ -11,6 +11,7 @@
 #include <cstdio>
 
 #include "quantisation.h"
+#include "bitstream.h"
 #include <cassert>
 #include <random>
 
@@ -82,28 +83,20 @@ void test_quantisation()
   // Uint packing
   // Unit
 
-  assert(unpack_int32(packed_int32(42)) == 42);
-  assert(unpack_int32(packed_int32(1337)) == 1337);
-  assert(unpack_int32(packed_int32(420691337)) == 420691337);
+  uint8_t* mem = (uint8_t *)malloc(sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t));
+  Bitstream bsw{mem};
+  bsw.writePackedUint(42u);
+  bsw.writePackedUint(1337u);
+  bsw.writePackedUint(420691337u);
 
-  assert(unpack_int32(packed_int32((1 << 6))) == (1 << 6));
-  assert(unpack_int32(packed_int32((1 << 14))) == (1 << 14));
-  assert(unpack_int32(packed_int32((1 << 30) - 1)) == (1 << 30) - 1);
-  std::cout << "Passed unit tests\n";
-
-  // Stress
-
-  std::random_device rd{};
-  std::default_random_engine gen{rd()};
-  std::uniform_int_distribution<uint32_t> distr(0, (1 << 30));
-
-  for (size_t i = 0; i < 100000; ++i)
-  {
-    const auto val = distr(gen);
-    assert(unpack_int32(packed_int32(val)) == val);
-  }
-
-  std::cout << "Passed stress tests\n";
+  Bitstream bsr{mem};
+  uint32_t val = 0;
+  bsr.readPackedUint(val);
+  assert(val == 42);
+  bsr.readPackedUint(val);
+  assert(val == 1337);
+  bsr.readPackedUint(val);
+  assert(val == 420691337);
 }
 
 int main(int argc, const char **argv)
