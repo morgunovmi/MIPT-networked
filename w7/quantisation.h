@@ -141,7 +141,7 @@ struct PackedFloat3
   }
 };
 
-typedef PackedFloat<uint8_t, 4> float4bitsQuantized;
+using float4bitsQuantized = PackedFloat<uint8_t, 4>;
 
 ////
 // Lossless uint packing

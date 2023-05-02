@@ -48,8 +48,38 @@ void on_snapshot(ENetPacket *packet)
     }
 }
 
+bool quantized_equal(float x, float y, float lo, float hi, int num_bits)
+{
+  int range = (1 << num_bits) - 1;
+  float step = (hi - lo) / range;
+  return abs(x - y) < step;
+}
+
 void test_quantisation()
 {
+  // Float quantization
+  // Unit
+  float testFloat = 0.123f;
+  PackedFloat<uint8_t, 4> floatPacked(testFloat, -1.f, 1.f);
+  auto unpackedFloat = floatPacked.unpack(-1.f, 1.f);
+  assert(quantized_equal(unpackedFloat, testFloat, -1.f, 1.f, 4));
+
+  float2 testFloat2 = {4.f, -5.f};
+  float2 interval = {-10.f, 10.f};
+  PackedFloat2<uint16_t, 8, 8> packed_vec2(testFloat2, interval, interval);
+  auto unpackedFloat2 = packed_vec2.unpack(interval, interval);
+  assert(quantized_equal(unpackedFloat2.x, testFloat2.x, interval.x, interval.y, 8));
+  assert(quantized_equal(unpackedFloat2.y, testFloat2.y, interval.x, interval.y, 8));
+
+  interval = {-1.f, 1.f};
+  float3 testFloat3 = {0.1f, -0.2f, 0.3f};
+  PackedFloat3<uint32_t, 11, 10, 11> packed_vec3(testFloat3, interval, interval, interval);
+  auto unpackedFloat3 = packed_vec3.unpack(interval, interval, interval);
+  assert(quantized_equal(unpackedFloat3.x, testFloat3.x, interval.x, interval.y, 11));
+  assert(quantized_equal(unpackedFloat3.y, testFloat3.y, interval.x, interval.y, 10));
+  assert(quantized_equal(unpackedFloat3.z, testFloat3.z, interval.x, interval.y, 11));
+
+  // Uint packing
   // Unit
 
   assert(unpack_int32(packed_int32(42)) == 42);

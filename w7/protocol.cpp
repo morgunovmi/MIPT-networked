@@ -1,5 +1,6 @@
 #include "protocol.h"
 #include "quantisation.h"
+#include "bitstream.h"
 #include <cstring> // memcpy
 #include <iostream>
 
@@ -15,9 +16,9 @@ void send_new_entity(ENetPeer *peer, const Entity &ent)
 {
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(Entity),
                                                    ENET_PACKET_FLAG_RELIABLE);
-  uint8_t *ptr = packet->data;
-  *ptr = E_SERVER_TO_CLIENT_NEW_ENTITY; ptr += sizeof(uint8_t);
-  memcpy(ptr, &ent, sizeof(Entity)); ptr += sizeof(Entity);
+  Bitstream bs{packet->data};
+  bs.write(E_SERVER_TO_CLIENT_NEW_ENTITY);
+  bs.write(ent);
 
   enet_peer_send(peer, 0, packet);
 }
@@ -26,9 +27,9 @@ void send_set_controlled_entity(ENetPeer *peer, uint16_t eid)
 {
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t),
                                                    ENET_PACKET_FLAG_RELIABLE);
-  uint8_t *ptr = packet->data;
-  *ptr = E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY; ptr += sizeof(uint8_t);
-  memcpy(ptr, &eid, sizeof(uint16_t)); ptr += sizeof(uint16_t);
+  Bitstream bs{packet->data};
+  bs.write(E_SERVER_TO_CLIENT_SET_CONTROLLED_ENTITY);
+  bs.write(eid);
 
   enet_peer_send(peer, 0, packet);
 }
@@ -38,23 +39,21 @@ void send_entity_input(ENetPeer *peer, uint16_t eid, float thr, float ori)
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t) +
                                                    sizeof(uint8_t),
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
-  uint8_t *ptr = packet->data;
-  *ptr = E_CLIENT_TO_SERVER_INPUT; ptr += sizeof(uint8_t);
-  memcpy(ptr, &eid, sizeof(uint16_t)); ptr += sizeof(uint16_t);
+  Bitstream bs{packet->data};
+  bs.write(E_CLIENT_TO_SERVER_INPUT);
+  bs.write(eid);
+
   float4bitsQuantized thrPacked(thr, -1.f, 1.f);
   float4bitsQuantized oriPacked(ori, -1.f, 1.f);
   uint8_t thrSteerPacked = (thrPacked.packedVal << 4) | oriPacked.packedVal;
-  memcpy(ptr, &thrSteerPacked, sizeof(uint8_t)); ptr += sizeof(uint8_t);
-  /*
-  memcpy(ptr, &thrPacked, sizeof(uint8_t)); ptr += sizeof(uint8_t);
-  memcpy(ptr, &oriPacked, sizeof(uint8_t)); ptr += sizeof(uint8_t);
-  */
+  bs.write(thrSteerPacked);
 
   enet_peer_send(peer, 1, packet);
 }
 
 typedef PackedFloat<uint16_t, 11> PositionXQuantized;
 typedef PackedFloat<uint16_t, 10> PositionYQuantized;
+using PositionQuantized = PackedFloat2<uint32_t, 11, 10>;
 
 void send_snapshot(ENetPeer *peer, uint16_t eid, Vector2 pos, float ori)
 {
@@ -84,25 +83,29 @@ MessageType get_packet_type(ENetPacket *packet)
 
 void deserialize_new_entity(ENetPacket *packet, Entity &ent)
 {
-  uint8_t *ptr = packet->data; ptr += sizeof(uint8_t);
-  ent = *(Entity*)(ptr); ptr += sizeof(Entity);
+  MessageType type{};
+  Bitstream bs{packet->data};
+  bs.read(type);
+  bs.read(ent);
 }
 
 void deserialize_set_controlled_entity(ENetPacket *packet, uint16_t &eid)
 {
-  uint8_t *ptr = packet->data; ptr += sizeof(uint8_t);
-  eid = *(uint16_t*)(ptr); ptr += sizeof(uint16_t);
+  MessageType type{};
+  Bitstream bs{packet->data};
+  bs.read(type);
+  bs.read(eid);
 }
 
 void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, float &steer)
 {
-  uint8_t *ptr = packet->data; ptr += sizeof(uint8_t);
-  eid = *(uint16_t*)(ptr); ptr += sizeof(uint16_t);
-  uint8_t thrSteerPacked = *(uint8_t*)(ptr); ptr += sizeof(uint8_t);
-  /*
-  uint8_t thrPacked = *(uint8_t*)(ptr); ptr += sizeof(uint8_t);
-  uint8_t oriPacked = *(uint8_t*)(ptr); ptr += sizeof(uint8_t);
-  */
+  MessageType type{};
+  Bitstream bs{packet->data};
+  bs.read(type);
+  bs.read(eid);
+  uint8_t thrSteerPacked = 0;
+  bs.read(thrSteerPacked);
+
   static uint8_t neutralPackedValue = pack_float<uint8_t>(0.f, -1.f, 1.f, 4);
   static uint8_t nominalPackedValue = pack_float<uint8_t>(1.f, 0.f, 1.2f, 4);
   float4bitsQuantized thrPacked(thrSteerPacked >> 4);

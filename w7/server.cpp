@@ -13,7 +13,7 @@ static std::map<uint16_t, ENetPeer*> controlledMap;
 
 std::random_device rd{};
 std::default_random_engine gen{rd()};
-std::uniform_real_distribution<float> playerPosDistr{-10.f, 10.f};
+std::uniform_real_distribution<float> playerPosDistr{-5.f, 5.f};
 std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
 
 void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
