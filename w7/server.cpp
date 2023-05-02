@@ -6,9 +6,15 @@
 #include <stdlib.h>
 #include <vector>
 #include <map>
+#include <random>
 
 static std::vector<Entity> entities;
 static std::map<uint16_t, ENetPeer*> controlledMap;
+
+std::random_device rd{};
+std::default_random_engine gen{rd()};
+std::uniform_real_distribution<float> playerPosDistr{-10.f, 10.f};
+std::uniform_int_distribution<uint8_t> colorDistr{0, 255};
 
 void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
 {
@@ -21,13 +27,16 @@ void on_join(ENetPacket *packet, ENetPeer *peer, ENetHost *host)
   for (const Entity &e : entities)
     maxEid = std::max(maxEid, e.eid);
   uint16_t newEid = maxEid + 1;
-  uint32_t color = 0xff000000 +
-                   0x00440000 * (rand() % 5) +
-                   0x00004400 * (rand() % 5) +
-                   0x00000044 * (rand() % 5);
-  float x = (rand() % 4) * 5.f;
-  float y = (rand() % 4) * 5.f;
-  Entity ent = {color, x, y, 0.f, (rand() / RAND_MAX) * 3.141592654f, 0.f, 0.f, newEid};
+  Color color = {colorDistr(gen),
+                 colorDistr(gen),
+                 colorDistr(gen),
+                 255};
+  Vector2 pos
+  {
+    .x = playerPosDistr(gen),
+    .y = playerPosDistr(gen)
+  };
+  Entity ent = {color, pos, 0.f, (rand() / RAND_MAX) * 3.141592654f, 0.f, 0.f, newEid};
   entities.push_back(ent);
 
   controlledMap[newEid] = peer;
@@ -114,7 +123,7 @@ int main(int argc, const char **argv)
         ENetPeer *peer = &server->peers[i];
         // skip this here in this implementation
         //if (controlledMap[e.eid] != peer)
-        send_snapshot(peer, e.eid, e.x, e.y, e.ori);
+        send_snapshot(peer, e.eid, e.pos, e.ori);
       }
     }
     usleep(10000);

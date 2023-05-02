@@ -56,7 +56,7 @@ void send_entity_input(ENetPeer *peer, uint16_t eid, float thr, float ori)
 typedef PackedFloat<uint16_t, 11> PositionXQuantized;
 typedef PackedFloat<uint16_t, 10> PositionYQuantized;
 
-void send_snapshot(ENetPeer *peer, uint16_t eid, float x, float y, float ori)
+void send_snapshot(ENetPeer *peer, uint16_t eid, Vector2 pos, float ori)
 {
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t) +
                                                    sizeof(uint16_t) +
@@ -66,8 +66,8 @@ void send_snapshot(ENetPeer *peer, uint16_t eid, float x, float y, float ori)
   uint8_t *ptr = packet->data;
   *ptr = E_SERVER_TO_CLIENT_SNAPSHOT; ptr += sizeof(uint8_t);
   memcpy(ptr, &eid, sizeof(uint16_t)); ptr += sizeof(uint16_t);
-  PositionXQuantized xPacked(x, -16, 16);
-  PositionYQuantized yPacked(y, -8, 8);
+  PositionXQuantized xPacked(pos.x, -16, 16);
+  PositionYQuantized yPacked(pos.y, -8, 8);
   uint8_t oriPacked = pack_float<uint8_t>(ori, -MATH_PI, MATH_PI, 8);
   //printf("xPacked/unpacked %d %f\n", xPacked, x);
   memcpy(ptr, &xPacked.packedVal, sizeof(uint16_t)); ptr += sizeof(uint16_t);
@@ -111,7 +111,7 @@ void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, flo
   steer = steerPacked.packedVal == neutralPackedValue ? 0.f : steerPacked.unpack(-1.f, 1.f);
 }
 
-void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, float &x, float &y, float &ori)
+void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, Vector2 &pos, float &ori)
 {
   uint8_t *ptr = packet->data; ptr += sizeof(uint8_t);
   eid = *(uint16_t*)(ptr); ptr += sizeof(uint16_t);
@@ -120,8 +120,8 @@ void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, float &x, float &y,
   PositionXQuantized xPackedVal(xPacked);
   PositionYQuantized yPackedVal(yPacked);
   uint8_t oriPacked = *(uint8_t*)(ptr); ptr += sizeof(uint8_t);
-  x = xPackedVal.unpack(-16, 16);
-  y = yPackedVal.unpack(-8, 8);
+  pos.x = xPackedVal.unpack(-16, 16);
+  pos.y = yPackedVal.unpack(-8, 8);
   ori = unpack_float<uint8_t>(oriPacked, -MATH_PI, MATH_PI, 8);
 }
 

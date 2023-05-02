@@ -37,14 +37,13 @@ void on_set_controlled_entity(ENetPacket *packet)
 void on_snapshot(ENetPacket *packet)
 {
   uint16_t eid = invalid_entity;
-  float x = 0.f; float y = 0.f; float ori = 0.f;
-  deserialize_snapshot(packet, eid, x, y, ori);
+  Vector2 pos{}; float ori = 0.f;
+  deserialize_snapshot(packet, eid, pos, ori);
   // TODO: Direct adressing, of course!
   for (Entity &e : entities)
     if (e.eid == eid)
     {
-      e.x = x;
-      e.y = y;
+      e.pos = pos;
       e.ori = ori;
     }
 }
@@ -185,8 +184,8 @@ int main(int argc, const char **argv)
         DrawRectangleLines(-16, -8, 32, 16, GetColor(0xff00ffff));
         for (const Entity &e : entities)
         {
-          const Rectangle rect = {e.x, e.y, 3.f, 1.f};
-          DrawRectanglePro(rect, {0.f, 0.5f}, e.ori * 180.f / PI, GetColor(e.color));
+          const Rectangle rect = {e.pos.x, e.pos.y, 3.f, 1.f};
+          DrawRectanglePro(rect, {0.f, 0.5f}, e.ori * 180.f / PI, e.color);
         }
 
       EndMode2D();

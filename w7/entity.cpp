@@ -8,7 +8,7 @@ void simulate_entity(Entity &e, float dt)
   e.speed = move_to(e.speed, clamp(e.thr, -0.3, 1.f) * 10.f, dt, accel);
   e.ori += e.steer * dt * clamp(e.speed, -2.f, 2.f) * 0.3f;
   e.ori = e.ori + (e.ori > MATH_PI ? -2.f * MATH_PI : e.ori < -MATH_PI ? 2.f * MATH_PI : 0.f);
-  e.x += cosf(e.ori) * e.speed * dt;
-  e.y += sinf(e.ori) * e.speed * dt;
+  e.pos.x += cosf(e.ori) * e.speed * dt;
+  e.pos.y += sinf(e.ori) * e.speed * dt;
 }
 
