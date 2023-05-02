@@ -51,27 +51,21 @@ void send_entity_input(ENetPeer *peer, uint16_t eid, float thr, float ori)
   enet_peer_send(peer, 1, packet);
 }
 
-typedef PackedFloat<uint16_t, 11> PositionXQuantized;
-typedef PackedFloat<uint16_t, 10> PositionYQuantized;
 using PositionQuantized = PackedFloat2<uint32_t, 11, 10>;
 
 void send_snapshot(ENetPeer *peer, uint16_t eid, Vector2 pos, float ori)
 {
   ENetPacket *packet = enet_packet_create(nullptr, sizeof(uint8_t) + sizeof(uint16_t) +
-                                                   sizeof(uint16_t) +
-                                                   sizeof(uint16_t) +
+                                                   sizeof(uint32_t) +
                                                    sizeof(uint8_t),
                                                    ENET_PACKET_FLAG_UNSEQUENCED);
-  uint8_t *ptr = packet->data;
-  *ptr = E_SERVER_TO_CLIENT_SNAPSHOT; ptr += sizeof(uint8_t);
-  memcpy(ptr, &eid, sizeof(uint16_t)); ptr += sizeof(uint16_t);
-  PositionXQuantized xPacked(pos.x, -16, 16);
-  PositionYQuantized yPacked(pos.y, -8, 8);
+  Bitstream bs{packet->data};
+  bs.write(E_SERVER_TO_CLIENT_SNAPSHOT);
+  bs.write(eid);
+  PositionQuantized posQuantized{{pos.x, pos.y}, {-16.f, 16.f}, {-8.f, 8.f}};
   uint8_t oriPacked = pack_float<uint8_t>(ori, -MATH_PI, MATH_PI, 8);
-  //printf("xPacked/unpacked %d %f\n", xPacked, x);
-  memcpy(ptr, &xPacked.packedVal, sizeof(uint16_t)); ptr += sizeof(uint16_t);
-  memcpy(ptr, &yPacked.packedVal, sizeof(uint16_t)); ptr += sizeof(uint16_t);
-  memcpy(ptr, &oriPacked, sizeof(uint8_t)); ptr += sizeof(uint8_t);
+  bs.write(posQuantized.packedVal);
+  bs.write(oriPacked);
 
   enet_peer_send(peer, 1, packet);
 }
@@ -116,15 +110,20 @@ void deserialize_entity_input(ENetPacket *packet, uint16_t &eid, float &thr, flo
 
 void deserialize_snapshot(ENetPacket *packet, uint16_t &eid, Vector2 &pos, float &ori)
 {
-  uint8_t *ptr = packet->data; ptr += sizeof(uint8_t);
-  eid = *(uint16_t*)(ptr); ptr += sizeof(uint16_t);
-  uint16_t xPacked = *(uint16_t*)(ptr); ptr += sizeof(uint16_t);
-  uint16_t yPacked = *(uint16_t*)(ptr); ptr += sizeof(uint16_t);
-  PositionXQuantized xPackedVal(xPacked);
-  PositionYQuantized yPackedVal(yPacked);
-  uint8_t oriPacked = *(uint8_t*)(ptr); ptr += sizeof(uint8_t);
-  pos.x = xPackedVal.unpack(-16, 16);
-  pos.y = yPackedVal.unpack(-8, 8);
+  MessageType type{};
+  Bitstream bs{packet->data};
+  bs.read(type);
+  bs.read(eid);
+
+  uint32_t posPacked = 0;
+  bs.read(posPacked);
+  PositionQuantized posQuantized{posPacked};
+  float2 posF2 = posQuantized.unpack({-16.f, 16.f}, {-8.f, 8.f});
+  uint8_t oriPacked = 0;
+  bs.read(oriPacked);
+
+  pos.x = posF2.x;
+  pos.y = posF2.y;
   ori = unpack_float<uint8_t>(oriPacked, -MATH_PI, MATH_PI, 8);
 }
 
